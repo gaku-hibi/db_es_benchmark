@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append('/app')
 
-from models import get_session, Location, EmployeeIndividualMap
+from models import get_session, get_db_engine, Location, EmployeeIndividualMap
 from es_models import get_es_client
 from datetime import datetime, timedelta
 import time
@@ -234,18 +234,23 @@ def wait_for_services():
     
     while retry_count < max_retries:
         try:
-            session = get_session()
-            session.execute("SELECT 1")
-            session.close()
+            # Check PostgreSQL
+            from sqlalchemy import text
+            engine = get_db_engine()
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+                conn.commit()
             
+            # Check Elasticsearch
             es = get_es_client()
-            es.info()
-            
-            print("Services are ready!")
-            return True
+            if es.ping():
+                print("Services are ready!")
+                return True
         except Exception as e:
             retry_count += 1
             print(f"Waiting for services... ({retry_count}/{max_retries})")
+            if retry_count == max_retries:
+                print(f"Error: {e}")
             time.sleep(2)
     
     print("Services failed to start!")
