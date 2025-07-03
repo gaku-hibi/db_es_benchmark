@@ -5,8 +5,13 @@ import os
 def get_es_client():
     es_host = os.environ.get('ES_HOST', 'localhost')
     es_port = os.environ.get('ES_PORT', '9200')
+    es_user = os.environ.get('ES_USER', 'elastic')
+    es_password = os.environ.get('ES_PASSWORD', 'elasticsearch_pass')
     
-    return Elasticsearch([f"http://{es_host}:{es_port}"])
+    return Elasticsearch(
+        [f"http://{es_host}:{es_port}"],
+        basic_auth=(es_user, es_password)
+    )
 
 def create_es_indices():
     es = get_es_client()
