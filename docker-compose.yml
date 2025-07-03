@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_benchmark
+    environment:
+      POSTGRES_USER: benchmark_user
+      POSTGRES_PASSWORD: benchmark_pass
+      POSTGRES_DB: benchmark_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - benchmark_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U benchmark_user -d benchmark_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: elasticsearch_benchmark
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - benchmark_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  benchmark_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: benchmark_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=benchmark_db
+      - DB_USER=benchmark_user
+      - DB_PASSWORD=benchmark_pass
+      - ES_HOST=elasticsearch
+      - ES_PORT=9200
+    volumes:
+      - ./app:/app
+      - ./scripts:/scripts
+    networks:
+      - benchmark_network
+    command: python /scripts/run_benchmark.py
+
+volumes:
+  postgres_data:
+  elasticsearch_data:
+
+networks:
+  benchmark_network:
+    driver: bridge
